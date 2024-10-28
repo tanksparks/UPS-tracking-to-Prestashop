@@ -1,0 +1,69 @@
+import requests
+import base64
+from xml.etree import ElementTree as ET
+from dbfread import DBF  # For reading DBF files
+from dbf import Table as dbfTable  # For writing DBF files
+
+# Define PrestaShop Webservice details
+PRESTASHOP_API_URL = "https://trackmateracing.com/shop/api"
+PRESTASHOP_API_KEY = "LLX4BDIUI52BZG7KG7RCCJKF3JBIMQ2A"
+
+# Function to get the last order's shipping details
+def get_last_order_shipping_details():
+    url = f"{PRESTASHOP_API_URL}/orders?sort=[id_DESC]&limit=1"
+    
+    # Basic Authentication setup
+    auth_header_value = base64.b64encode(PRESTASHOP_API_KEY.encode('utf-8')).decode('utf-8')
+    headers = {
+        'Authorization': f'Basic {auth_header_value}',
+        'Accept': 'application/xml'  # Expect XML response
+    }
+    
+    response = requests.get(url, headers=headers)
+    
+    if response.status_code == 200:
+        # Parse the XML response
+        root = ET.fromstring(response.content)
+        
+        # Assuming orders data is available in the XML, adjust parsing according to PrestaShop's XML structure
+        customer_id = root.find('.//id_customer').text
+        shipping_address = {
+            'address1': root.find('.//address1').text,
+            'city': root.find('.//city').text,
+            'postcode': root.find('.//postcode').text,
+            'country': root.find('.//country').text
+        }
+        return customer_id, shipping_address
+    else:
+        print(f"Failed to fetch order data. Status code: {response.status_code}")
+    return None, None
+
+# Function to update the CUSTOMER.DBF with the new shipping address
+def update_ups_customer_dbf(customer_id, shipping_address):
+    dbf_path = 'CONNECT/CONNECT/CUSTOMER.DBF'  # Adjust the path as needed
+    table = dbfTable(dbf_path)
+    
+    with table.open(mode=dbfTable.READ_WRITE):
+        for record in table:
+            if record['CUSTOMER_ID'] == customer_id:
+                # Update the address fields accordingly
+                record['ADDRESS'] = shipping_address.get('address1', '')
+                record['CITY'] = shipping_address.get('city', '')
+                record['POSTALCODE'] = shipping_address.get('postcode', '')
+                record['COUNTRY'] = shipping_address.get('country', '')
+                table.write(record)
+                print(f"Updated customer {customer_id} with new shipping address.")
+                break
+        else:
+            print(f"Customer ID {customer_id} not found in the DBF file.")
+
+# Main function to run the process
+def main():
+    customer_id, shipping_address = get_last_order_shipping_details()
+    if customer_id and shipping_address:
+        update_ups_customer_dbf(customer_id, shipping_address)
+    else:
+        print("Failed to retrieve the last order's shipping details.")
+
+if __name__ == "__main__":
+    main()

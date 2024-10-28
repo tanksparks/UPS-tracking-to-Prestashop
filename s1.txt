@@ -1,0 +1,116 @@
+import requests
+import base64
+from xml.etree import ElementTree as ET
+import dbf
+
+# Define PrestaShop Webservice details
+PRESTASHOP_API_URL = "https://trackmateracing.com/shop/api"
+PRESTASHOP_API_KEY = "LLX4BDIUI52BZG7KG7RCCJKF3JBIMQ2A"
+
+# Function to get the order details from the specific order URL
+def get_order_details(order_url):
+    print(f"Fetching order details from {order_url}")
+    
+    auth_header_value = base64.b64encode(PRESTASHOP_API_KEY.encode('utf-8')).decode('utf-8')
+    headers = {
+        'Authorization': f'Basic {auth_header_value}',
+        'Accept': 'application/xml'
+    }
+    
+    response = requests.get(order_url, headers=headers)
+    
+    if response.status_code == 200:
+        root = ET.fromstring(response.content)
+        customer_id = root.find('.//id_customer').text
+        id_address_delivery = root.find('.//id_address_delivery').text
+
+        # Fetch shipping address
+        address_url = root.find('.//id_address_delivery').get('{http://www.w3.org/1999/xlink}href')
+        address_response = requests.get(address_url, headers=headers)
+        if address_response.status_code == 200:
+            address_root = ET.fromstring(address_response.content)
+            shipping_address = {
+                'address1': address_root.find('.//address1').text,
+                'city': address_root.find('.//city').text,
+                'postcode': address_root.find('.//postcode').text,
+                'country': address_root.find('.//id_country').text
+            }
+            print(f"Customer ID: {customer_id}, Shipping Address: {shipping_address}")
+            return customer_id, shipping_address
+    return None, None
+
+# Function to get the last order's shipping details
+def get_last_order_shipping_details():
+    url = f"{PRESTASHOP_API_URL}/orders?sort=[id_DESC]&limit=1"
+    
+    auth_header_value = base64.b64encode(PRESTASHOP_API_KEY.encode('utf-8')).decode('utf-8')
+    headers = {
+        'Authorization': f'Basic {auth_header_value}',
+        'Accept': 'application/xml'
+    }
+    
+    response = requests.get(url, headers=headers)
+    
+    if response.status_code == 200:
+        root = ET.fromstring(response.content)
+        order_element = root.find('.//order')
+        if order_element is not None:
+            order_url = order_element.get('{http://www.w3.org/1999/xlink}href')
+            return get_order_details(order_url)
+    return None, None
+
+# Function to update or add the customer in the CUSTOMER.DBF file
+def update_ups_customer_dbf(customer_id, shipping_address):
+    dbf_path = 'CONNECT/CONNECT/CUSTOMER.DBF'
+    
+    try:
+        print(f"Opening DBF file: {dbf_path}")
+        # Open the DBF file in read-write mode
+        table = dbf.Table(dbf_path)
+        table.open(mode=dbf.READ_WRITE)
+        
+        customer_id_str = str(customer_id).strip()  # Ensure customer_id is a string and trimmed of spaces
+        found = False
+
+        # Iterate through the records in the DBF file to find the customer
+        for record in table:
+            if str(record.CUST_ID).strip() == customer_id_str:
+                print(f"Customer ID {customer_id_str} found. Updating address.")
+                
+                # Use `with` block to modify the record safely
+                with record as rec:
+                    rec.SO_ADDR_1 = shipping_address.get('address1', '')
+                    rec.SO_CITY = shipping_address.get('city', '')
+                    rec.SO_POST_CO = shipping_address.get('postcode', '')
+                    rec.SO_COUNTRY = shipping_address.get('country', '')
+                found = True
+                break
+        
+        if not found:
+            # Add a new customer if not found
+            print(f"Customer ID {customer_id_str} not found. Adding new customer.")
+            table.append({
+                'CUST_ID': customer_id_str,
+                'SO_ADDR_1': shipping_address.get('address1', ''),
+                'SO_CITY': shipping_address.get('city', ''),
+                'SO_POST_CO': shipping_address.get('postcode', ''),
+                'SO_COUNTRY': shipping_address.get('country', '')
+            })
+            print(f"New customer {customer_id_str} added to DBF.")
+        
+        table.close()
+        print(f"DBF file updated successfully.")
+    
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+# Main function to run the process
+def main():
+    customer_id, shipping_address = get_last_order_shipping_details()
+    if customer_id and shipping_address:
+        update_ups_customer_dbf(customer_id, shipping_address)
+    else:
+        print("Failed to retrieve the last order's shipping details.")
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,117 @@
+//Install-Package DbfDataReader
+//Install-Package Newtonsoft.Json
+
+
+using System;
+using System.IO;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Threading.Tasks;
+using DbfDataReader;  // Add DbfDataReader via NuGet
+
+class Program
+{
+    static async Task Main(string[] args)
+    {
+        // Get the current date
+        DateTime currentDate = DateTime.Now;
+        string year = currentDate.ToString("yy");     // e.g., "24" for 2024
+        string month = currentDate.ToString("MMM");   // e.g., "Oct" for October
+        string day = currentDate.ToString("dd");      // Day of the month
+
+        // Directory and file based on the current date
+        string directoryName = $"{month}{year}";      // e.g., "Oct24"
+        string fileName = $"s{year}{currentDate.ToString("MMdd")}.dbf";  // e.g., "s241016.dbf"
+        string dbfFilePath = Path.Combine(directoryName, fileName);
+
+        // Check if the file exists
+        if (!File.Exists(dbfFilePath))
+        {
+            Console.WriteLine($"DBF file not found: {dbfFilePath}");
+            return;
+        }
+
+        // Read the DBF file and process records
+        using (var dbfTable = new DbfTable(dbfFilePath, Encoding.UTF8))
+        {
+            while (dbfTable.Read())
+            {
+                string orderNumber = dbfTable.GetString("REFERENCE0");  // Order Number field
+                string trackingNumber = dbfTable.GetString("TRACK_NO");  // Tracking Number field
+
+                Console.WriteLine($"Extracted Order Number: {orderNumber}, Tracking Number: {trackingNumber}");
+
+                // Call the method to update PrestaShop with the tracking number
+                await UpdateTrackingNumber(orderNumber, trackingNumber);
+            }
+        }
+    }
+
+    // Function to update the tracking number in PrestaShop via API
+    static async Task UpdateTrackingNumber(string orderNumber, string trackingNumber)
+    {
+        string apiUrl = "https://trackmateracing.com/shop/api";
+        string apiKey = "LLX4BDIUI52BZG7KG7RCCJKF3JBIMQ2A";  // Replace with your actual API key
+        
+        using (var client = new HttpClient())
+        {
+            // Basic Authentication
+            var authValue = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{apiKey}:"));
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", authValue);
+
+            // Get the current order data (GET request)
+            var getOrderResponse = await client.GetAsync($"{apiUrl}/orders/{orderNumber}");
+            if (!getOrderResponse.IsSuccessStatusCode)
+            {
+                Console.WriteLine($"Failed to get order data: {getOrderResponse.StatusCode}");
+                return;
+            }
+
+            var orderData = await getOrderResponse.Content.ReadAsStringAsync();
+
+            // Modify the XML data to include the new tracking number
+            var updatedOrderData = UpdateTrackingInXml(orderData, trackingNumber);
+
+            // Send updated data back (PUT request)
+            var content = new StringContent(updatedOrderData, Encoding.UTF8, "application/xml");
+            var updateOrderResponse = await client.PutAsync($"{apiUrl}/orders/{orderNumber}", content);
+
+            if (updateOrderResponse.IsSuccessStatusCode)
+            {
+                Console.WriteLine($"Tracking number for order {orderNumber} updated successfully.");
+            }
+            else
+            {
+                Console.WriteLine($"Failed to update tracking number: {updateOrderResponse.StatusCode}");
+            }
+        }
+    }
+
+    // Function to modify XML data with new tracking number
+    static string UpdateTrackingInXml(string xmlData, string trackingNumber)
+    {
+        var xmlDocument = new System.Xml.XmlDocument();
+        xmlDocument.LoadXml(xmlData);
+
+        // Find the shipping_number field and update its value
+        var shippingNumberNode = xmlDocument.SelectSingleNode("//shipping_number");
+        if (shippingNumberNode != null)
+        {
+            shippingNumberNode.InnerText = trackingNumber;
+            Console.WriteLine($"Updating tracking number to: {trackingNumber}");
+        }
+        else
+        {
+            Console.WriteLine("Shipping number element not found.");
+        }
+
+        // Convert updated XML back to string
+        using (var stringWriter = new StringWriter())
+        using (var xmlTextWriter = new System.Xml.XmlTextWriter(stringWriter))
+        {
+            xmlDocument.WriteTo(xmlTextWriter);
+            return stringWriter.GetStringBuilder().ToString();
+        }
+    }
+}
