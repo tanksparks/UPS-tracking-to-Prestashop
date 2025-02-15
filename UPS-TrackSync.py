@@ -7,7 +7,7 @@ import os
 
 # Configuration
 api_url = 'https://yoursite.com/shop/api'
-api_key = 'looks something like this LLX4BDIUI52BZG7KG7RCCJKF3JBIMQ2A'  # Replace with your actual API key
+api_key = 'looks something like this 2BZG7KG7RCCJKF3JBIMQ2A'  # Replace with your actual API key
 
 # Encode API key in base64 format
 auth = base64.b64encode(f'{api_key}:'.encode()).decode('utf-8')
