@@ -51,8 +51,8 @@ class Program
     // Function to update the tracking number in PrestaShop via API
     static async Task UpdateTrackingNumber(string orderNumber, string trackingNumber)
     {
-        string apiUrl = "https://trackmateracing.com/shop/api";
-        string apiKey = "LLX4BDIUI52BZG7KG7RCCJKF3JBIMQ2A";  // Replace with your actual API key
+        string apiUrl = "https://yoursite.com/shop/api";
+        string apiKey = "longapiLLX4BDIUIget it form websrvice";  // Replace with your actual API key
         
         using (var client = new HttpClient())
         {
