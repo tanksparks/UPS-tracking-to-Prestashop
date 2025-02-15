@@ -4,8 +4,8 @@ from xml.etree import ElementTree as ET
 import dbf
 
 # Define PrestaShop Webservice details
-PRESTASHOP_API_URL = "https://trackmateracing.com/shop/api"
-PRESTASHOP_API_KEY = "LLX4BDIUI52BZG7KG7RCCJKF3JBIMQ2A"
+PRESTASHOP_API_URL = "https://yoursite.com/shop/api"
+PRESTASHOP_API_KEY = "somehitng like this BZG7KG7RCCJKF3JBIMQ2A"
 
 # Function to get the order details from the specific order URL
 def get_order_details(order_url):
