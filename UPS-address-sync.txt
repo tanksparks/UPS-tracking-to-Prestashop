@@ -5,8 +5,8 @@ from dbfread import DBF  # For reading DBF files
 from dbf import Table as dbfTable  # For writing DBF files
 
 # Define PrestaShop Webservice details
-PRESTASHOP_API_URL = "https://trackmateracing.com/shop/api"
-PRESTASHOP_API_KEY = "LLX4BDIUI52BZG7KG7RCCJKF3JBIMQ2A"
+PRESTASHOP_API_URL = "https://yoursite.com/shop/api"
+PRESTASHOP_API_KEY = "yourapiBZG7KG7RCCJKF3JBIMQ2A"
 
 # Function to get the last order's shipping details
 def get_last_order_shipping_details():
